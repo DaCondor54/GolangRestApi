@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
+
+	"github.com/gorilla/mux"
 )
 
 func IndexHandle(writer http.ResponseWriter, request *http.Request) {
@@ -41,14 +44,59 @@ func CreateHandle(writer http.ResponseWriter, request *http.Request) {
 
 func UpdateHanlde(writer http.ResponseWriter, request *http.Request) {
 	fmt.Println("Request Update")
-
 	writer.Header().Set("Content-Type", "application/json")
+
+	id := mux.Vars(request)["id"]
+	idInt, err := strconv.Atoi(id)
+	if err != nil {
+		fmt.Println("Couldnt parse parameter ID to Number")
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	mangaIndex := MangaArray.SameId(idInt)
+	if mangaIndex == -1 {
+		log.Println("Wrong Index")
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	var manga Manga
+	if err := json.NewDecoder(request.Body).Decode(&manga); err != nil {
+		log.Println("Could not decode manga")
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	manga.BookId = idInt
+	MangaArray.MangaArray[mangaIndex] = manga
+
+	if err := json.NewEncoder(writer).Encode(manga); err != nil {
+		log.Println("Could not encode manga")
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	writer.WriteHeader(http.StatusOK)
 }
 
 func ReadHandle(writer http.ResponseWriter, request *http.Request) {
-	fmt.Println("Read Handle")
+	fmt.Println("Read Id Handle")
+	id := mux.Vars(request)["id"]
 
-	writer.Header().Set("Content-Type", "application/json")
+	idInt, err := strconv.Atoi(id)
+	if err != nil {
+		log.Println("Could not parse Int")
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	mangaIndex := MangaArray.SameId(idInt)
+
+	if err := json.NewEncoder(writer).Encode(MangaArray.MangaArray[mangaIndex]); err != nil {
+		log.Println("Could not Encode the manga")
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	writer.WriteHeader(http.StatusOK)
 }
