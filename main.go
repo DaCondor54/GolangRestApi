@@ -15,7 +15,8 @@ func main() {
 
 	router := mux.NewRouter()
 	router.HandleFunc("/", IndexHandle).Methods("GET")
-	router.HandleFunc("/create", CreateHandle).Methods("POST")
+	router.HandleFunc("/create/manga", CreateHandle).Methods("POST")
+	router.HandleFunc("/create/mangas", CreateManyHandle).Methods("POST")
 	router.HandleFunc("/update/{id}", UpdateHanlde).Methods("PUT")
 	router.HandleFunc("/read/{id}", ReadHandle).Methods("GET")
 

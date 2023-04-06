@@ -11,34 +11,51 @@ import (
 )
 
 func IndexHandle(writer http.ResponseWriter, request *http.Request) {
-	fmt.Println("Request Index")
-
+	log.Println("Request Index")
 	writer.Header().Set("Content-Type", "application/json")
-	writer.WriteHeader(http.StatusOK)
 
-	err := json.NewEncoder(writer).Encode(MangaArray)
-	if err != nil {
-		log.Fatalln("Couldn't encode")
+	if err := json.NewEncoder(writer).Encode(MangaArray); err != nil {
+		log.Println("Couldn't encode")
+		writer.WriteHeader(http.StatusInternalServerError)
 	}
 }
 
 func CreateHandle(writer http.ResponseWriter, request *http.Request) {
-	fmt.Println("Request Create")
-
+	log.Println("Request Create")
 	writer.Header().Set("Content-Type", "application/json")
 
 	var manga Manga
-	err := json.NewDecoder(request.Body).Decode(&manga)
-	if err != nil {
+	if err := json.NewDecoder(request.Body).Decode(&manga); err != nil {
 		log.Println("Couldn't Decode Post Request")
 		writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	MangaArray.AddManga(manga)
 
-	err = json.NewEncoder(writer).Encode(manga)
-	if err != nil {
+	MangaArray.AddManga(manga)
+	if err := json.NewEncoder(writer).Encode(manga); err != nil {
 		log.Println("Couldn't Encode ")
+		writer.WriteHeader(http.StatusInternalServerError)
+	}
+}
+
+func CreateManyHandle(writer http.ResponseWriter, request *http.Request) {
+	log.Println("Request Create Many")
+	writer.Header().Set("Content-Type", "application/json")
+
+	var mangas Mangas
+	if err := json.NewDecoder(request.Body).Decode(&mangas); err != nil {
+		log.Println("Couldn't Decode Mangas Collection")
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	for _, v := range mangas.MangaArray {
+		MangaArray.AddManga(v)
+	}
+
+	if err := json.NewEncoder(writer).Encode(MangaArray); err != nil {
+		log.Println("Couldn't Encode Manga Collection")
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 }
 
@@ -76,8 +93,6 @@ func UpdateHanlde(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-
-	writer.WriteHeader(http.StatusOK)
 }
 
 func ReadHandle(writer http.ResponseWriter, request *http.Request) {
@@ -98,5 +113,4 @@ func ReadHandle(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	writer.WriteHeader(http.StatusOK)
 }

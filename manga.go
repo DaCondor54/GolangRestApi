@@ -8,7 +8,7 @@ type Manga struct {
 }
 
 type Mangas struct {
-	MangaArray []Manga
+	MangaArray []Manga `json:"mangas"`
 	idCounter  int
 }
 
