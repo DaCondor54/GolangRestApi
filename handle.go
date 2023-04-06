@@ -14,7 +14,9 @@ func IndexHandle(writer http.ResponseWriter, request *http.Request) {
 	log.Println("Request Index")
 	writer.Header().Set("Content-Type", "application/json")
 
-	if err := json.NewEncoder(writer).Encode(MangaArray); err != nil {
+	MangaArray.RLock()
+	defer MangaArray.RUnlock()
+	if err := json.NewEncoder(writer).Encode(&MangaArray); err != nil {
 		log.Println("Couldn't encode")
 		writer.WriteHeader(http.StatusInternalServerError)
 	}
@@ -31,7 +33,9 @@ func CreateHandle(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	MangaArray.AddManga(manga)
+	MangaArray.Lock()
+	defer MangaArray.Unlock()
+	MangaArray.AddManga(&manga)
 	if err := json.NewEncoder(writer).Encode(manga); err != nil {
 		log.Println("Couldn't Encode ")
 		writer.WriteHeader(http.StatusInternalServerError)
@@ -48,11 +52,14 @@ func CreateManyHandle(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
+
+	MangaArray.Lock()
+	defer MangaArray.Unlock()
 	for _, v := range mangas.MangaArray {
-		MangaArray.AddManga(v)
+		MangaArray.AddManga(&v)
 	}
 
-	if err := json.NewEncoder(writer).Encode(MangaArray); err != nil {
+	if err := json.NewEncoder(writer).Encode(&MangaArray); err != nil {
 		log.Println("Couldn't Encode Manga Collection")
 		writer.WriteHeader(http.StatusInternalServerError)
 		return
@@ -71,6 +78,8 @@ func UpdateHanlde(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
+	MangaArray.Lock()
+	defer MangaArray.Unlock()
 	mangaIndex := MangaArray.SameId(idInt)
 	if mangaIndex == -1 {
 		log.Println("Wrong Index")
@@ -97,6 +106,7 @@ func UpdateHanlde(writer http.ResponseWriter, request *http.Request) {
 
 func ReadHandle(writer http.ResponseWriter, request *http.Request) {
 	fmt.Println("Read Id Handle")
+	writer.Header().Set("Content-Type", "application/json")
 	id := mux.Vars(request)["id"]
 
 	idInt, err := strconv.Atoi(id)
@@ -106,6 +116,8 @@ func ReadHandle(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
+	MangaArray.RLock()
+	defer MangaArray.RUnlock()
 	mangaIndex := MangaArray.SameId(idInt)
 
 	if err := json.NewEncoder(writer).Encode(MangaArray.MangaArray[mangaIndex]); err != nil {
@@ -116,7 +128,7 @@ func ReadHandle(writer http.ResponseWriter, request *http.Request) {
 }
 
 func limitNumClients(f http.HandlerFunc, maxClients int) http.HandlerFunc {
-	sema := make(chan struct{})
+	sema := make(chan struct{}, maxClients)
 
 	return func(w http.ResponseWriter, req *http.Request) {
 		sema <- struct{}{}
