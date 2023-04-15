@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	_ "github.com/jackc/pgx/v5"
 )
 
 var MangaArray Mangas
