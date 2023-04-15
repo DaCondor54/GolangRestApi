@@ -23,6 +23,7 @@ func IndexHandle(writer http.ResponseWriter, request *http.Request) {
 		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
 		return
 	}
+	defer conn.Close(context.Background())
 
 	rows, err := conn.Query(context.Background(), "SELECT * FROM manga;")
 	if err != nil {
@@ -44,8 +45,6 @@ func IndexHandle(writer http.ResponseWriter, request *http.Request) {
 		mangaCollection.AddManga(&manga)
 	}
 
-	MangaArray.RLock()
-	defer MangaArray.RUnlock()
 	if err := json.NewEncoder(writer).Encode(&mangaCollection); err != nil {
 		log.Println("Couldn't encode")
 		writer.WriteHeader(http.StatusInternalServerError)
@@ -70,14 +69,11 @@ func CreateHandle(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 	defer conn.Close(context.Background())
-	if _, err := conn.Exec(context.Background(), "INSERT INTO  manga(book_id, title, year, volumes) VALUES($1, $2, $3, $4);", manga.BookId, manga.Title, manga.Year, manga.Volumes); err != nil {
+	if _, err := conn.Exec(context.Background(), "INSERT INTO  manga(title, year, volumes) VALUES($1, $2, $3);", manga.Title, manga.Year, manga.Volumes); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to insert into mangas DB: %v\n", err)
 		return
 	}
 
-	MangaArray.Lock()
-	defer MangaArray.Unlock()
-	MangaArray.AddManga(&manga)
 	if err := json.NewEncoder(writer).Encode(manga); err != nil {
 		log.Println("Couldn't Encode ")
 		writer.WriteHeader(http.StatusInternalServerError)
@@ -95,13 +91,21 @@ func CreateManyHandle(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	MangaArray.Lock()
-	defer MangaArray.Unlock()
-	for _, v := range mangas.MangaArray {
-		MangaArray.AddManga(&v)
+	urlExample := "postgres://user:password@localhost:5432/dbname"
+	conn, err := pgx.Connect(context.Background(), urlExample)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
+		return
+	}
+	defer conn.Close(context.Background())
+	for _, manga := range mangas.MangaArray {
+		if _, err := conn.Exec(context.Background(), "INSERT INTO  manga(title, year, volumes) VALUES($1, $2, $3);", manga.Title, manga.Year, manga.Volumes); err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to insert into mangas DB: %v\n", err)
+			return
+		}
 	}
 
-	if err := json.NewEncoder(writer).Encode(&MangaArray); err != nil {
+	if err := json.NewEncoder(writer).Encode(&mangas); err != nil {
 		log.Println("Couldn't Encode Manga Collection")
 		writer.WriteHeader(http.StatusInternalServerError)
 		return
@@ -120,15 +124,6 @@ func UpdateHanlde(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	MangaArray.Lock()
-	defer MangaArray.Unlock()
-	mangaIndex := MangaArray.SameId(idInt)
-	if mangaIndex == -1 {
-		log.Println("Wrong Index")
-		writer.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
 	var manga Manga
 	if err := json.NewDecoder(request.Body).Decode(&manga); err != nil {
 		log.Println("Could not decode manga")
@@ -136,9 +131,18 @@ func UpdateHanlde(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	manga.BookId = idInt
-	MangaArray.MangaArray[mangaIndex] = manga
+	urlExample := "postgres://user:password@localhost:5432/dbname"
+	conn, err := pgx.Connect(context.Background(), urlExample)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
+		return
+	}
+	defer conn.Close(context.Background())
 
+	if _, err := conn.Exec(context.Background(), "UPDATE manga SET title=$1, year=$2, volumes=$3 WHERE book_id=$4", manga.Title, manga.Year, manga.Volumes, idInt); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to conn Exec Update to database: %v\n", err)
+		return
+	}
 	if err := json.NewEncoder(writer).Encode(manga); err != nil {
 		log.Println("Could not encode manga")
 		writer.WriteHeader(http.StatusInternalServerError)
@@ -158,11 +162,21 @@ func ReadHandle(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	MangaArray.RLock()
-	defer MangaArray.RUnlock()
-	mangaIndex := MangaArray.SameId(idInt)
+	urlExample := "postgres://user:password@localhost:5432/dbname"
+	conn, err := pgx.Connect(context.Background(), urlExample)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
+		return
+	}
+	defer conn.Close(context.Background())
+	row := conn.QueryRow(context.Background(), "SELECT book_id, title, year, volumes FROM manga WHERE book_id=$1;", idInt)
+	var manga Manga
+	if err := row.Scan(&manga.BookId, &manga.Title, &manga.Year, &manga.Volumes); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
+		return
+	}
 
-	if err := json.NewEncoder(writer).Encode(MangaArray.MangaArray[mangaIndex]); err != nil {
+	if err := json.NewEncoder(writer).Encode(manga); err != nil {
 		log.Println("Could not Encode the manga")
 		writer.WriteHeader(http.StatusInternalServerError)
 		return
